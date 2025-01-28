@@ -1,0 +1,188 @@
+<#
+.SYNOPSIS
+GUI for Port Scanner
+
+.DESCRIPTION
+Provides a graphical interface to scan for open ports on a range of IP addresses, with options for common ports, custom ports, and additional utilities.
+
+.NOTES
+Created and owned by Gayantha Bhagya Wijeyawardena
+
+.DISCLAIMER
+This tool is for educational and authorized use only. Unauthorized scanning of networks is prohibited.
+#>
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+# Create Form
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "Port Scanner by Gayantha Wijeyawardena"
+$form.Size = New-Object System.Drawing.Size(600, 600)
+$form.StartPosition = "CenterScreen"
+$form.BackColor = [System.Drawing.Color]::White
+
+# Create Controls
+$labelStartIP = New-Object System.Windows.Forms.Label
+$labelStartIP.Text = "Start IP:"
+$labelStartIP.Location = New-Object System.Drawing.Point(10, 20)
+$labelStartIP.Size = New-Object System.Drawing.Size(100, 20)
+$labelStartIP.ForeColor = [System.Drawing.Color]::Blue
+$form.Controls.Add($labelStartIP)
+
+$textStartIP = New-Object System.Windows.Forms.TextBox
+$textStartIP.Text = "192.168.1.1"
+$textStartIP.Location = New-Object System.Drawing.Point(120, 20)
+$textStartIP.Size = New-Object System.Drawing.Size(150, 20)
+$form.Controls.Add($textStartIP)
+
+$labelEndIP = New-Object System.Windows.Forms.Label
+$labelEndIP.Text = "End IP:"
+$labelEndIP.Location = New-Object System.Drawing.Point(10, 60)
+$labelEndIP.Size = New-Object System.Drawing.Size(100, 20)
+$labelEndIP.ForeColor = [System.Drawing.Color]::Blue
+$form.Controls.Add($labelEndIP)
+
+$textEndIP = New-Object System.Windows.Forms.TextBox
+$textEndIP.Text = "192.168.1.1"
+$textEndIP.Location = New-Object System.Drawing.Point(120, 60)
+$textEndIP.Size = New-Object System.Drawing.Size(150, 20)
+$form.Controls.Add($textEndIP)
+
+$labelCustomPorts = New-Object System.Windows.Forms.Label
+$labelCustomPorts.Text = "Custom Ports (comma-separated):"
+$labelCustomPorts.Location = New-Object System.Drawing.Point(10, 100)
+$labelCustomPorts.Size = New-Object System.Drawing.Size(200, 20)
+$labelCustomPorts.ForeColor = [System.Drawing.Color]::Blue
+$form.Controls.Add($labelCustomPorts)
+
+$textCustomPorts = New-Object System.Windows.Forms.TextBox
+$textCustomPorts.Text = ""
+$textCustomPorts.Location = New-Object System.Drawing.Point(220, 100)
+$textCustomPorts.Size = New-Object System.Drawing.Size(150, 20)
+$form.Controls.Add($textCustomPorts)
+
+$buttonScan = New-Object System.Windows.Forms.Button
+$buttonScan.Text = "Scan"
+$buttonScan.Location = New-Object System.Drawing.Point(120, 140)
+$buttonScan.Size = New-Object System.Drawing.Size(100, 30)
+$buttonScan.BackColor = [System.Drawing.Color]::LightGreen
+$buttonScan.ForeColor = [System.Drawing.Color]::DarkGreen
+$form.Controls.Add($buttonScan)
+
+$buttonDisclaimer = New-Object System.Windows.Forms.Button
+$buttonDisclaimer.Text = "Disclaimer"
+$buttonDisclaimer.Location = New-Object System.Drawing.Point(240, 140)
+$buttonDisclaimer.Size = New-Object System.Drawing.Size(100, 30)
+$buttonDisclaimer.BackColor = [System.Drawing.Color]::LightBlue
+$buttonDisclaimer.ForeColor = [System.Drawing.Color]::DarkBlue
+$form.Controls.Add($buttonDisclaimer)
+
+$textResults = New-Object System.Windows.Forms.RichTextBox
+$textResults.Multiline = $true
+$textResults.ScrollBars = "Vertical"
+$textResults.Location = New-Object System.Drawing.Point(10, 200)
+$textResults.Size = New-Object System.Drawing.Size(560, 350)
+$textResults.BackColor = [System.Drawing.Color]::Black
+$textResults.ForeColor = [System.Drawing.Color]::White
+$form.Controls.Add($textResults)
+
+# Define Port List
+$defaultPorts = @{
+    22   = "SSH"
+    23   = "Telnet"
+    25   = "SMTP"
+    53   = "DNS"
+    80   = "HTTP"
+    443  = "HTTPS"
+    110  = "POP3"
+    143  = "IMAP"
+    389  = "LDAP"
+    636  = "LDAPS"
+    135  = "MS RPC"
+    136  = "NetBIOS Session Service"
+    137  = "NetBIOS Name Service"
+    138  = "NetBIOS Datagram Service"
+    445  = "SMB"
+    3389 = "RDP"
+}
+
+# Button Click Event for Scan
+$buttonScan.Add_Click({
+    $textResults.Clear()
+    $textResults.AppendText("Scanning..." + [Environment]::NewLine)
+
+    $startIP = $textStartIP.Text
+    $endIP = $textEndIP.Text
+
+    $customPorts = $textCustomPorts.Text -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^\d+$" } | Sort-Object -Unique
+
+    $portsToScan = $defaultPorts.Keys + $customPorts
+    $portsToScan = $portsToScan | Sort-Object -Unique
+
+    # Generate list of IPs
+    $ipRange = @()
+    $currentIP = $startIP
+
+    while ($true) {
+        $ipRange += $currentIP
+        if ($currentIP -eq $endIP) { break }
+
+        $octets = $currentIP -split '\.'
+        $octets[3] = [int]$octets[3] + 1
+        if ($octets[3] -gt 255) {
+            $octets[3] = 0
+            $octets[2] = [int]$octets[2] + 1
+        }
+        $currentIP = $octets -join '.'
+    }
+
+    # Scan each IP
+    foreach ($ip in $ipRange) {
+        $textResults.SelectionColor = [System.Drawing.Color]::White
+        $textResults.AppendText("Scanning $ip..." + [Environment]::NewLine)
+
+        if (-not (Test-Connection -ComputerName $ip -Count 1 -Quiet)) {
+            $textResults.SelectionColor = [System.Drawing.Color]::Red
+            $textResults.AppendText("  Host unreachable" + [Environment]::NewLine)
+            continue
+        } else {
+            $textResults.SelectionColor = [System.Drawing.Color]::Cyan
+            $textResults.AppendText("  Host is reachable (ICMP Response OK)" + [Environment]::NewLine)
+        }
+
+        foreach ($port in $portsToScan) {
+            $service = $defaultPorts[$port] -or "Custom"
+            try {
+                $result = Test-NetConnection -ComputerName $ip -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction Stop
+
+                if ($result) {
+                    $textResults.SelectionColor = [System.Drawing.Color]::Green
+                    $textResults.AppendText("  Port $port ($service): Open" + [Environment]::NewLine)
+                } else {
+                    $textResults.SelectionColor = [System.Drawing.Color]::Red
+                    $textResults.AppendText("  Port $port ($service): Closed" + [Environment]::NewLine)
+                }
+            } catch {
+                $textResults.SelectionColor = [System.Drawing.Color]::Yellow
+                $textResults.AppendText("  Port $port ($service): Error" + [Environment]::NewLine)
+            }
+        }
+    }
+
+    $textResults.SelectionColor = [System.Drawing.Color]::White
+    $textResults.AppendText("=== Scan complete ===" + [Environment]::NewLine)
+})
+
+# Button Click Event for Disclaimer
+$buttonDisclaimer.Add_Click({
+    $textResults.Clear()
+    $textResults.SelectionColor = [System.Drawing.Color]::Cyan
+    $textResults.AppendText("This tool is created and owned by Gayantha Bhagya Wijeyawardena." + [Environment]::NewLine)
+    $textResults.AppendText("Distribution or usage for unauthorized or malicious activities is strictly prohibited." + [Environment]::NewLine)
+    $textResults.AppendText("Violators may face severe legal consequences." + [Environment]::NewLine)
+    $textResults.AppendText("Developer Contact : gayanthabhagya@gmail.com" + [Environment]::NewLine)
+})
+
+# Show Form
+[void]$form.ShowDialog()
